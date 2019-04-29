@@ -16,9 +16,21 @@ class Throttler:
         self._redis_url = redis_url
         self._key = key
         self._client = redis.Redis.from_url(redis_url)
+        self._delay = self.estimate_delay()
 
     def throttle(self, rate_per_second: float):
         raise RuntimeError('应该在子类中继承实现这个方法')
+
+    def estimate_delay(self, num_rounds: int = 10):
+        """ 估算redis和本机之间的网络延迟 """
+        # 先建立连接
+        self._client.ping()
+
+        t1 = time.time()
+        for _ in range(num_rounds):
+            self._client.ping()
+        t2 = time.time()
+        return (t2 - t1) / num_rounds
 
 
 class SmoothThrottler(Throttler):
@@ -36,8 +48,10 @@ class SmoothThrottler(Throttler):
             sha1 = self._client.script_load(script_info['script'])
             us_to_sleep = self._client.evalsha(sha1, 1, self._key,
                                                rate_per_second)
-        second_to_sleep = us_to_sleep / 1000000.
-        if us_to_sleep > 0:
+
+        # 需要减掉和redis通信所花的网络延迟
+        second_to_sleep = us_to_sleep / 1000000. - self._delay
+        if second_to_sleep > 0:
             logger.debug('触发限速, 等待{:.6f}秒'.format(second_to_sleep))
             time.sleep(second_to_sleep)
 

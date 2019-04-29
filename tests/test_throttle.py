@@ -1,5 +1,8 @@
 # coding: utf-8
 import time
+import random
+import threading
+import statistics
 import multiprocessing
 from distlimiter import throttle
 
@@ -9,6 +12,19 @@ from distlimiter import throttle
           method='smooth',
           redis_url='redis://localhost')
 def add(a: int, b: int) -> int:
+    return a + b
+
+
+start_times = []
+
+
+@throttle('add2',
+          rate_per_second=100,
+          method='smooth',
+          redis_url='redis://localhost')
+def add2(a: int, b: int) -> int:
+    start_times.append(time.time())
+    time.sleep(random.random() / 5)
     return a + b
 
 
@@ -52,7 +68,28 @@ def test_break_between_tasks():
     assert t2 - t1 < 0.006
 
 
+def test_random_work():
+    start_times.clear()
+    tasks = []
+    for _ in range(11):
+        task = threading.Thread(target=add2, args=(1, 3), daemon=True)
+        task.start()
+        tasks.append(task)
+
+    for task in tasks:
+        task.join()
+
+    deltas = [
+        start_times[i] - start_times[i - 1]
+        for i in range(1, len(start_times))
+    ]
+    mean, std = statistics.mean(deltas), statistics.stdev(deltas)
+    assert 0.01 * 0.9 < mean < 0.01 * 1.1, mean
+    assert std < 0.005, std
+
+
 if __name__ == "__main__":
+    test_random_work()
     t0 = time.time()
     for _ in range(11):
         add(1, 2)
