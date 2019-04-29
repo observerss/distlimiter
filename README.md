@@ -18,20 +18,40 @@ pip install distlimiter
 
 ```python
 import time
+import random
+import threading
+from statistics import mean, stdev
 from distlimiter import throttle
 
-@throttle('add0', rate_per_second=100, method='smooth', redis_url='redis://localhost')
+starttimes = []
+
+
+@throttle('add0',
+          rate_per_second=100,
+          method='smooth',
+          redis_url='redis://localhost')
 def add(a: int, b: int) -> int:
+    starttimes.append(time.time())
+    time.sleep(random.random() / 5)
     return a + b
 
 
-t1 = time.time()
+tasks = []
 for _ in range(11):
-    assert 3 == add(1, 2)
-t2 = time.time()
+    t = threading.Thread(target=add, args=(1, 2), daemon=True)
+    t.start()
+    tasks.append(t)
 
-# 放宽0.2秒，要给redis初始连接一点时间
-assert 12 / 100 > t2 - t1 > 10 / 100, '限速100qps, 但11次连续请求在{:.6f}秒内完成'.format(t2 - t1)
+for t in tasks:
+    t.join()
+
+intervals = [
+    starttimes[i] - starttimes[i - 1] for i in range(1, len(starttimes))
+]
+print(intervals)
+print(mean(intervals), stdev(intervals))
+# [0.009971857070922852, 0.012664794921875, 0.007295131683349609, 0.01067209243774414, 0.009412765502929688, 0.013530254364013672, 0.0070078372955322266, 0.01360011100769043, 0.005474090576171875, 0.01084280014038086]
+# 0.010047173500061036 0.002804029576649581
 ```
 
 ## Why?
