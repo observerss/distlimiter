@@ -41,6 +41,8 @@ class SmoothThrottler(Throttler):
 
     def throttle(self, rate_per_second: float):
         script_info = get_throttle_script()
+
+        # (原子化地)获取执行所需的等待时间
         try:
             us_to_sleep = self._client.evalsha(script_info['sha1'], 1,
                                                self._key, rate_per_second)

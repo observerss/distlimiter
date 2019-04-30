@@ -10,6 +10,8 @@ def get_throttle_script() -> dict:
     docs: https://redis.io/commands/eval
 
     EVAL script numkeys key [key ...] arg [arg ...]
+
+    本脚本的目的是，(原子化地)获得每个任务的预期**延迟**执行时间
     """
     script = dedent("""
         local function time1m(t)
