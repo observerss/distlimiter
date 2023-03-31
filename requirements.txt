@@ -1,2 +1,2 @@
 hiredis==1.0.0
-redis==3.2.1
+redis==4.4.4
